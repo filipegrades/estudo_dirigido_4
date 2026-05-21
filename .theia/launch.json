@@ -1,16 +1,23 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "base_",
-      "type": "ccs-debug",
-      "request": "launch",
-      "projectInfo": {
-        "name": "base_",
-        "resourceId": "/base_"
-      }
-    }
-  ]
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "base_",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "base_",
+                "resourceId": "/base_"
+            }
+        },
+        {
+            "name": "estudo_dirigido_4",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "estudo_dirigido_4",
+                "resourceId": "/estudo_dirigido_4"
+            }
+        }
+    ]
 }

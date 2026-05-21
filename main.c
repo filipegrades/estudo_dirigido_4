@@ -1,43 +1,30 @@
-
+//
+// Included Files
+//
 #include "driverlib.h"
 #include "device.h"
 #include "board.h"
 
+
 //
-// Main
+// Fun��o Principal
 //
 void main(void)
 {
-    // Device Initialization
+    // Inicializa��o do dispositivo
     Device_init();
-
-    //
-    // Initializes PIE and clears PIE registers. Disables CPU interrupts.
-    //
     Interrupt_initModule();
-
-    //
-    // Initializes the PIE vector table with pointers to the shell Interrupt
-    // Service Routines (ISR).
-    //
     Interrupt_initVectorTable();
+    Board_init();
 
-	Board_init();
-
-    //
-    // Enable Global Interrupt (INTM) and realtime interrupt (DBGM)
-    //
+    // Habilita interrup��es globais e de tempo real
     EINT;
     ERTM;
 
-    while(1)
+    while (1)
     {
-    }	
-	
+        
+    }
 }
 
 
-
-//
-// End of File
-//

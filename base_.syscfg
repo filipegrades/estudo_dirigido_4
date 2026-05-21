@@ -5,3 +5,29 @@
  * @v2CliArgs --board "/boards/LAUNCHXL_F28379D" --device "TMS320F28379D" --package "337ZWT" --context "CPU1" --product "C2000WARE@26.00.00.00"
  * @versions {"tool":"1.27.0+4565"}
  */
+
+/**
+ * Import the modules used in this configuration.
+ */
+const sci  = scripting.addModule("/driverlib/sci.js", {}, false);
+const sci1 = sci.addInstance();
+
+/**
+ * Write custom configuration values to the imported modules.
+ */
+sci1.$name                      = "SCI0";
+sci1.selectRegisteredInterrupts = ["registerRxInt"];
+sci1.enabledFIFOInterrupts      = ["SCI_INT_RXFF"];
+sci1.rxFifo                     = "SCI_FIFO_RX2";
+sci1.sci.scirxdPin.$assign      = "GPIO43";
+sci1.sci.scitxdPin.$assign      = "GPIO42";
+sci1.rxQual.$name               = "myGPIOQUAL0";
+sci1.txQual.$name               = "myGPIOQUAL1";
+sci1.sciRXInt.enableInterrupt   = true;
+
+/**
+ * Pinmux solution for unlocked pins/peripherals. This ensures that minor changes to the automatic solver in a future
+ * version of the tool will not impact the pinmux you originally saw.  These lines can be completely deleted in order to
+ * re-solve from scratch.
+ */
+sci1.sci.$suggestSolution = "SCIA";
