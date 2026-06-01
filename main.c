@@ -8,8 +8,8 @@
 
 #define TB 666
 
-static int buffer[TB];
-static int cont = 0;
+int g_signal_buffer[TB];
+int g_cont = 0;
 
 
 //
@@ -35,10 +35,16 @@ void main(void)
 
 __interrupt void INT_SCI0_RX_ISR(void)
 {
-    buffer[cont] = protocolReceiveInt(SCI0_BASE);
-    cont = (cont+1)%TB;
+    g_signal_buffer[g_cont] = protocolReceiveInt(SCI0_BASE);
+    g_cont = (g_cont+1)%TB;
     
     SCI_clearInterruptStatus(SCI0_BASE, SCI_INT_RXFF);
     Interrupt_clearACKGroup(INT_SCI0_RX_INTERRUPT_ACK_GROUP);
 }
 
+__interrupt void INT_myCPUTIMER1_ISR(void)
+{
+    static uint16_t cnt_dac = 0;
+    DAC_setShadowValue(DAC0_BASE, (uint16_t) (g_signal_buffer[cnt_dac]));
+    cnt_dac = (cnt_dac+1)%TB;
+}

@@ -9,12 +9,29 @@
 /**
  * Import the modules used in this configuration.
  */
-const sci  = scripting.addModule("/driverlib/sci.js", {}, false);
-const sci1 = sci.addInstance();
+const cputimer  = scripting.addModule("/driverlib/cputimer.js", {}, false);
+const cputimer1 = cputimer.addInstance();
+const dac       = scripting.addModule("/driverlib/dac.js", {}, false);
+const dac1      = dac.addInstance();
+const sci       = scripting.addModule("/driverlib/sci.js", {}, false);
+const sci1      = sci.addInstance();
 
 /**
  * Write custom configuration values to the imported modules.
  */
+cputimer1.cputimerBase             = "CPUTIMER1_BASE";
+cputimer1.enableInterrupt          = true;
+cputimer1.registerInterrupts       = true;
+cputimer1.startTimer               = true;
+cputimer1.emulationMode            = "CPUTIMER_EMULATIONMODE_RUNFREE";
+cputimer1.timerPeriod              = 9999;
+cputimer1.$name                    = "myCPUTIMER1";
+cputimer1.timerInt.enableInterrupt = true;
+
+dac1.$name        = "DAC0";
+dac1.dacBase      = "DACB_BASE";
+dac1.enableOutput = true;
+
 sci1.$name                      = "SCI0";
 sci1.selectRegisteredInterrupts = ["registerRxInt"];
 sci1.enabledFIFOInterrupts      = ["SCI_INT_RXFF"];
