@@ -6,7 +6,7 @@
 #include "board.h"
 #include "scicomm.h"
 
-#define TB 334
+#define TB 200
 
 int g_signal_buffer[TB];
 int g_cont = 0;

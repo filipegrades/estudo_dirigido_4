@@ -7,60 +7,27 @@ import struct
 # Configuração da porta serial
 SERIAL_PORT = 'COM4'
 BAUD_RATE = 115200
-DATA_BITS = 2
 
-# Sinal a ser enviado
-fs = 20000      #Frequência de amostragem do sinal
-amplitude = 1500   #Amplitude do sinal desejado
-offset = 2048    #Offset do sinal desejado
-fsig = 120      #Frequência do sinal
-#TB = 2*(int)(fs/fsig)    #Tamano do buffer
-TB = 334
-sinal = [None]*TB     #Vetor vazio
+# Valores utilizado nas frequências e vetores
+fs_dac = 20000
+fs_adc = 10000
+TB = 200    # Tamanhos vetores
+dac_signal = [None]*TB    
 adc_signal = [None]*TB
-fs_dac = 20000    # Frequência que o Python usa para gerar o vetor (Timer do DAC)
-fs_adc = 10000    # Nova frequência de amostragem do hardware
 
-#Loop para criar o vetor do sinal
-print("Escolha o cenário de harmônicos para injetar no sinal:")
-print("1 - Harmônico ABAIXO de Nyquist (f = 3.000 Hz) -> Captura perfeita")
-print("2 - Harmônico NA Frequência de Nyquist (f = 10.000 Hz) -> Limite teórico")
-print("3 - Harmônico ACIMA de Nyquist (f = 17.000 Hz) -> Efeito de Aliasing (Rebatimento)")
-opc = input("Opção: ")
-
-# Define a frequência e amplitude do harmônico com base na escolha
-if opc == '1':
-    f_harmonico = 3000
-    amp_harmonico = 500  
-    print(f"\nGerando Fundamental (1200Hz) + Harmônico de {f_harmonico} Hz...")
-elif opc == '2':
-    f_harmonico = 5000
-    amp_harmonico = 500  
-    print(f"\nGerando Fundamental (1200Hz) + Harmônico de {f_harmonico} Hz (Nyquist)...")
-elif opc == '3':
-    f_harmonico = 8000
-    amp_harmonico = 500  
-    print(f"\nGerando Fundamental (1200Hz) + Harmônico de {f_harmonico} Hz (Aliasing)...")
-elif opc == '4':
-    f_harmonico = 0
-    amp_harmonico = 0  
-    print(f"\nGerando Fundamental (120Hz) + Harmônico de {f_harmonico} Hz (Aliasing)...")
-else:
-    f_harmonico = 0
-    amp_harmonico = 0
-    print("\nApenas a componente fundamental de 120Hz será enviada.")
-
-# 1. Cria o vetor de tempo absoluto para o DAC (em segundos)
-t_dac = np.arange(TB) / fs_dac
-
-# Gera o sinal usando o vetor de tempo do DAC diretamente
-for key in range(TB):
-    fundamental = amplitude * np.sin(2 * np.pi * fsig * t_dac[key])
-    harmonico = amp_harmonico * np.sin(2 * np.pi * f_harmonico * t_dac[key])
-    sinal[key] = int(fundamental + harmonico + offset)
-
-# for key in range(TB):
-#     sinal[key] = (int)(amplitude*np.sin(2*np.pi*fsig*key/fs) + offset)
+# Configurações dos sinais a serem sintetizados
+fs = fs_dac
+t_base = np.arange(TB)/fs
+offset = 2048
+f1 = 500
+f1_2 = 1000
+amplitude1 = 1000
+f2 = 2000
+amplitude2 = 750
+f3 = 5000
+amplitude3 = 500
+f4 = 7000
+amplitude4 = 250
 
 #Função de envio de um int em bytes pela serial
 def send_int_to_uart(serialobj: serial.Serial, value: int, byteorder: str) -> None:
@@ -70,7 +37,103 @@ def send_int_to_uart(serialobj: serial.Serial, value: int, byteorder: str) -> No
     # Enviar os bytes pela porta serial
     serialobj.write(bytes_to_send)
 
-#Função principal
+# Função de recepção do bloco completo de interios
+def receive_int_vector_from_uart(serialobj: serial.Serial, tb: int):
+    # Limpa qualquer "lixo" que tenha ficado na linha antes de pedir os dados
+    serialobj.flushInput()
+    # Envia o pedido de envio do buffer
+    send_int_to_uart(serialobj, 32000, 'little')
+    
+    # Realiza a leitura de todo o bloco de dados
+    raw_data = serialobj.read(tb * 2)
+    
+    if len(raw_data) == tb * 2:
+        # Converte o bloco de bytes para o vetor int e JÁ RETORNA ELE PRONTO
+        return np.frombuffer(raw_data, dtype=np.int16)
+    else:
+        print(f"\n[AVISO] Timeout na Serial! Recebidos {len(raw_data)} bytes.")
+        return None
+
+# Função para plotagem dos graficos
+def plotting(sinal_dac:int, fs_dac:int, sinal_adc:int, fs_adc:int):
+    """
+    Gera os gráficos de tempo e frequência recebendo os vetores e taxas de amostragem.
+    """
+    tb_dac = len(sinal_dac)
+    tb_adc = len(sinal_adc)
+
+    t_dac = np.arange(tb_dac) / fs_dac
+    t_adc = np.arange(tb_adc) / fs_adc
+    
+    # ==========================================
+    # FFT E CORREÇÃO DO OFFSET (DC)
+    # ==========================================
+    xf_dac = np.fft.rfftfreq(tb_dac, 1/fs_dac)
+    fft_dac = (2.0 / tb_dac) * np.abs(np.fft.rfft(sinal_dac))
+    fft_dac[0] = fft_dac[0] / 2.0  # Corrige o valor dobrado em 0 Hz
+
+    xf_adc = np.fft.rfftfreq(tb_adc, 1/fs_adc)
+    fft_adc = (2.0 / tb_adc) * np.abs(np.fft.rfft(sinal_adc))
+    fft_adc[0] = fft_adc[0] / 2.0  # Corrige o valor dobrado em 0 Hz
+    # ==========================================
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+    # --- Subplot 1: Tempo ---
+    ax1.plot(t_dac * 1000, sinal_dac, label=f"Sinal Enviado", color='purple', linewidth=2)
+    ax1.plot(t_adc * 1000, sinal_adc, label=f"Sinal Amostrado", color='darkorange', linewidth=2)
+    
+    ax1.set_title("Sinais no Domínio do Tempo")
+    ax1.set_xlabel("Tempo (ms)")
+    ax1.set_ylabel("Amplitude")
+    
+    limite_x_tempo = min(t_dac[-1] * 1000, t_adc[-1] * 1000)
+    4
+    ax1.set_xlim(0, limite_x_tempo)
+    
+    ax1.legend()
+    ax1.grid(True, linestyle='--', alpha=0.7)
+
+    # --- Subplot 2: Frequência (Linhas Limpas) ---
+    ax2.plot(xf_dac, fft_dac, label="FFT do Sinal Enviado", color='purple')
+    ax2.plot(xf_adc, fft_adc, label="FFT do Sinal Amostrado", color='darkorange')
+    
+    ax2.set_title("Espectro de Frequências - FFT")
+    ax2.set_xlabel("Frequência (Hz)")
+    ax2.set_ylabel("Magnitude")
+    
+    # ==========================================
+    # LÓGICA DO EIXO X DINÂMICO (Grid de 500 Hz)
+    # ==========================================
+    limiar_ruido = 50 
+    freqs_com_sinal = xf_dac[fft_dac > limiar_ruido]
+    
+    max_freq_real = np.max(freqs_com_sinal) if len(freqs_com_sinal) > 0 else 0
+    limite_freq = min(fs_dac / 2, max_freq_real + 500)
+    
+    # Arredonda para o próximo múltiplo de 500 para manter o grid simétrico no final
+    limite_freq = np.ceil(limite_freq / 500) * 500
+    limite_freq = max(fs_adc / 2, limite_freq)
+
+    # Aplica o limite dinâmico e o grid customizado de 500 em 500
+    ax2.set_xlim(0, limite_freq) 
+    ax2.set_xticks(np.arange(0, limite_freq + 1, 500))
+    # ==========================================
+    
+    # Linhas indicativas de Nyquist
+    ax2.axvline(x=fs_dac/2, color='purple', linestyle=':')
+    ax2.axvline(x=fs_adc/2, color='darkorange', linestyle='--')
+    
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.7)
+
+    # Rotaciona levemente os números do eixo X para não ficarem amontoados
+    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+    plt.tight_layout()
+    plt.show()
+
+# Função principal
 def main():
     try:
         # Abre a porta serial usando um bloco 'with' para garantir que ela seja fechada
@@ -79,93 +142,57 @@ def main():
             time.sleep(1) # Um pequeno tempo para a serial estabilizar
             ser.flushInput() #limpa bytes remanescentes do buffer de entrada
 
-            for key in range(TB):
-                send_int_to_uart(ser,sinal[key],'little')
-# Limpa qualquer "lixo" que tenha ficado na linha antes de pedir os dados
-            ser.flushInput() 
-            
-            # Envia o gatilho
-            send_int_to_uart(ser, 32000, 'little')
+            while True:
+                print("Escolha o sinal a ser enviado:")
+                print("1 - Sinal contendo apenas a frequencia fundamental de 500 Hz")
+                print("2 - Sinal com a frequencia igual ao dobro da fundamental -> 1000 Hz")
+                print("3- Sinal com a fundamental (500Hz) mais harmônicos,\n um abaixo da frequencia de Nyquist (2000 Hz),\n" \
+                " um na frequeência de Nyquist (5000 Hz) e\n um acima da frequência de Nyquist (7000 Hz)")
+                print("4 - Sair")
+                se = input("Opção: ")
 
-            # Lê todos os 666 bytes (333 int16) de uma só vez
-            # Isso evita que o SO atrase a leitura entre um byte e outro
-            raw_data = ser.read(TB * 2)
+                #Pela opção escolhida realiza-se o preenchimento do buffer a ser enviado
+                if se == '1':
+                    dac_signal = (
+                        offset + 
+                        amplitude1 * np.sin(2 * np.pi * f1 * t_base) 
+                    ).astype(int)
+                elif se == '2':
+                    dac_signal = (
+                        offset + 
+                        amplitude1 * np.sin(2 * np.pi * f1_2 * t_base) 
+                    ).astype(int)
+                elif se == '3':
+                    dac_signal = (
+                        offset + 
+                        amplitude1 * np.sin(2 * np.pi * f1 * t_base) + 
+                        amplitude2 * np.sin(2 * np.pi * f2 * t_base) + 
+                        amplitude3 * np.sin(2 * np.pi * f3 * t_base) + 
+                        amplitude4 * np.sin(2 * np.pi * f4 * t_base)
+                    ).astype(int)
+                elif se == '4':
+                    break
+                else:
+                    dac_signal = (
+                        offset + 
+                        amplitude1 * np.sin(2 * np.pi * f1 * t_base) 
+                    ).astype(int)   
 
-            if len(raw_data) == TB * 2:
-                # Converte o bloco de bytes direto para o vetor Numpy
-                adc_signal = np.frombuffer(raw_data, dtype=np.int16)
-                
-                # 2. Cria o vetor de tempo absoluto para o ADC lido (em segundos)
-                # Como o ADC roda na metade da velocidade, ele demorou o dobro do tempo
-                # para preencher os mesmos 333 pontos.
-                t_adc = np.arange(len(adc_signal)) / fs_adc
-                
-                # FFT DO SINAL ENVIADO
-                xf_sinal = np.fft.rfftfreq(TB, 1/fs_dac)
-                fft_sinal = (2.0 / TB) * np.abs(np.fft.rfft(sinal))
+                ser.flushInput()
+                for key in range(TB):
+                    send_int_to_uart(ser,dac_signal[key],'little')
 
-                # FFT DO SINAL LIDO
-                xf_adc = np.fft.rfftfreq(len(adc_signal), 1/fs_adc)
-                fft_adc = (2.0 / len(adc_signal)) * np.abs(np.fft.rfft(adc_signal))
+                adc_signal = receive_int_vector_from_uart(ser,TB)
 
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-                # Plot no Tempo (Multiplicando por 1000 para exibir em milissegundos)
-                ax1.plot(t_dac * 1000, sinal, label="Sinal Enviado (DAC a 20kHz)", linewidth=2)
-                ax1.plot(t_adc * 1000, adc_signal, label="Sinal Lido (ADC a 10kHz)", linewidth=2)
-                
-                ax1.set_title("Sinais no Domínio do Tempo")
-                ax1.set_xlabel("Tempo (ms)")
-                ax1.set_ylabel("Amplitude")
-
-                # Descobre o tempo máximo de cada vetor (multiplicado por 1000 para ficar em ms)
-                max_tempo_dac = t_dac[-1] * 1000
-                max_tempo_adc = t_adc[-1] * 1000
-                
-                # Encontra o menor valor temporal para cortar o gráfico no ponto exato
-                limite_x_tempo = min(max_tempo_dac, max_tempo_adc)
-                ax1.set_xlim(0, limite_x_tempo)
-                
-                ax1.legend()
-                ax1.grid(True, linestyle='--', alpha=0.7)
-
-                # Plot na Frequência
-                ax2.plot(xf_sinal, fft_sinal, label="FFT Enviada (Pico em 8kHz)", color='blue', marker='o', markersize=4)
-                ax2.plot(xf_adc, fft_adc, label="FFT Lida (Aliasing em 2kHz)", color='orange', marker='x', markersize=6)
-                
-                ax2.set_title("Espectro de Frequências - Aliasing Físico no C2000")
-                ax2.set_xlabel("Frequência (Hz)")
-                ax2.set_ylabel("Magnitude")
-                
-                # ax2.set_xlim(0, 10000) 
-                # ax2.set_ylim(0, amplitude + 200)
-
-                # Linhas de Nyquist
-                ax2.axvline(x=10000, color='blue', linestyle=':', label='Nyquist do DAC (10kHz)')
-                ax2.axvline(x=5000, color='orange', linestyle='--', label='Nyquist do ADC (5kHz)')
-                
-                ax2.legend()
-                ax2.grid(True, linestyle='--', alpha=0.7)
-
-                plt.tight_layout()
-                plt.show()
-            else:
-                print(f"Erro de timeout: Foram recebidos {len(raw_data)} bytes de {TB * 2} esperados.")
-
-            # plt.figure()
-            # plt.plot(sinal)
-            # plt.plot(adc_signal)
-            # plt.show()
+                plotting(dac_signal,fs_dac,adc_signal,fs_adc)
 
 
-            # while True:
-            #     pass
 
     except serial.SerialException as e:
         print(f"\nERRO: Nao foi possivel abrir a porta serial '{SERIAL_PORT}'.")
         print(f"Detalhe: {e}")
         print("Verifique se a porta esta correta e se nenhum outro programa a esta usando.")
-    
+
 
 if __name__ == '__main__':
     main()
