@@ -59,6 +59,15 @@ def plotting(sinal_dac:int, fs_dac:int, sinal_adc:int, fs_adc:int):
     """
     Gera os gráficos de tempo e frequência recebendo os vetores e taxas de amostragem.
     """
+    plt.rcParams.update({
+        "text.usetex": True,                      # Usa o compilador LaTeX do seu PC
+        "text.latex.preamble": r"\usepackage{lmodern}", # Força a fonte Latin Modern
+        "font.family": "serif",                   # Define a família como serifada
+        "axes.formatter.use_mathtext": True,      # Usa formatação matemática nos eixos
+        "font.size": 10, 
+        "lines.linewidth": 1.2
+    })
+    
     tb_dac = len(sinal_dac)
     tb_adc = len(sinal_adc)
 
@@ -77,7 +86,7 @@ def plotting(sinal_dac:int, fs_dac:int, sinal_adc:int, fs_adc:int):
     fft_adc[0] = fft_adc[0] / 2.0  # Corrige o valor dobrado em 0 Hz
     # ==========================================
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(4.0, 3.5))
 
     # --- Subplot 1: Tempo ---
     ax1.plot(t_dac * 1000, sinal_dac, label=f"Sinal Enviado", color='purple', linewidth=2)
